@@ -12,29 +12,9 @@ permissions:
   contents: write
 
 jobs:
-  create-release:
-    name: Create GitHub release
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Create GitHub release
-        env:
-          TAG: ${{ github.event.inputs.tag }}
-        run: |
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --notes "Test release $TAG" \
-            --prerelease
-
   build-viewer-local:
     name: Build viewer (${{ matrix.target }})
     runs-on: ${{ matrix.runner }}
-    needs: create-release
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
@@ -82,23 +62,15 @@ jobs:
           TAG: ${{ github.event.inputs.tag }}
         run: dist build --tag="${TAG}" --artifacts=local --target=${{ matrix.target }}
 
-      - name: Upload to GitHub Release
-        shell: bash
-        env:
-          TAG: ${{ github.event.inputs.tag }}
-        run: |
-          for file in target/distrib/*; do
-            if [ -f "$file" ]; then
-              gh release upload "$TAG" "$file" --clobber
-            fi
-          done
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.target }}
+          path: target/distrib/*
 
   build-viewer-global:
     name: Build viewer installers
     runs-on: ubuntu-22.04
-    needs: create-release
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -114,11 +86,43 @@ jobs:
           TAG: ${{ github.event.inputs.tag }}
         run: dist build --tag="${TAG}" --artifacts=global
 
-      - name: Upload to GitHub Release
+      - name: Upload global artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-global
+          path: target/distrib/*
+
+  create-release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    needs: [build-viewer-local, build-viewer-global]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub release
         env:
           TAG: ${{ github.event.inputs.tag }}
         run: |
-          for file in target/distrib/*; do
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes "Test release $TAG" \
+            --prerelease
+
+      - name: Upload artifacts to release
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          for file in artifacts/*; do
             if [ -f "$file" ]; then
               gh release upload "$TAG" "$file" --clobber
             fi
