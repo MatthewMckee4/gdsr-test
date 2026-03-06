@@ -109,11 +109,17 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Create GitHub release with artifacts
+      - name: Create GitHub release
         env:
           TAG: ${{ github.event.inputs.tag }}
         run: |
-          gh release create "$TAG" artifacts/* \
+          gh release create "$TAG" \
             --title "$TAG" \
             --notes "Test release $TAG" \
             --prerelease
+
+      - name: Upload artifacts to release
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          find artifacts -type f -exec gh release upload "$TAG" {} --clobber \;
