@@ -1,0 +1,11 @@
+[package]
+name = "gdsr"
+version = "0.0.1-alpha.1"
+description = "A test library crate"
+repository = "https://github.com/MatthewMckee4/gdsr-test"
+edition = { workspace = true }
+rust-version = { workspace = true }
+homepage = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+publish = false

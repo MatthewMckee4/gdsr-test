@@ -1,0 +1,33 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+homepage = "https://github.com/MatthewMckee4/gdsr-test"
+authors = ["Matthew McKee <matthewmckee4@yahoo.co.uk>"]
+license = "MIT"
+
+[workspace.dependencies]
+gdsr = { path = "crates/gdsr" }
+clap = "4.5.55"
+
+[workspace.metadata.dist]
+allow-dirty = ["ci"]
+cargo-dist-version = "0.31.0"
+ci = "github"
+installers = ["shell", "powershell"]
+targets = [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "aarch64-unknown-linux-gnu",
+    "aarch64-unknown-linux-musl",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+    "x86_64-pc-windows-msvc",
+]
+
+[profile.dist]
+inherits = "release"
+lto = "thin"

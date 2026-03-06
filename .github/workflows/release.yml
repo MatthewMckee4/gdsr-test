@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g., v0.0.1-alpha.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create GitHub release
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes "Test release $TAG" \
+            --prerelease
+
+  build-viewer-local:
+    name: Build viewer (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    needs: create-release
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            target: aarch64-apple-darwin
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+          - runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+          - runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-musl
+            packages_install: sudo apt-get update && sudo apt-get install -y musl-tools
+          - runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-22.04
+            target: x86_64-unknown-linux-musl
+            packages_install: sudo apt-get update && sudo apt-get install -y musl-tools
+          - runner: windows-2022
+            target: x86_64-pc-windows-msvc
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cargo-dist
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-dist@0.31.0
+
+      - name: Install dependencies
+        if: matrix.packages_install
+        run: ${{ matrix.packages_install }}
+
+      - name: Build binaries
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+        run: dist build --tag="${TAG}" --artifacts=local --target=${{ matrix.target }}
+
+      - name: Upload to GitHub Release
+        shell: bash
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          for file in target/distrib/*; do
+            if [ -f "$file" ]; then
+              gh release upload "$TAG" "$file" --clobber
+            fi
+          done
+
+  build-viewer-global:
+    name: Build viewer installers
+    runs-on: ubuntu-22.04
+    needs: create-release
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install cargo-dist
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-dist@0.31.0
+
+      - name: Build global artifacts
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+        run: dist build --tag="${TAG}" --artifacts=global
+
+      - name: Upload to GitHub Release
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          for file in target/distrib/*; do
+            if [ -f "$file" ]; then
+              gh release upload "$TAG" "$file" --clobber
+            fi
+          done
